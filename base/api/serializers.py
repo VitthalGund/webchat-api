@@ -9,10 +9,40 @@ class RoomSerializer(ModelSerializer):
         fields = "__all__"
 
 
-class UserSerializer(ModelSerializer):
+class CreateRoomSerializer(ModelSerializer):
+    topic = serializers.CharField()
+
+    class Meta:
+        model = Room
+        fields = ["host", "topic", "name", "description", "participants"]
+        extra_kwargs = {
+            "description": {"required": False},
+            "participants": {"required": False},
+        }
+
+
+class UpdateRoomSerializer(serializers.ModelSerializer):
+    topic = serializers.CharField()
+
+    class Meta:
+        model = Room
+        fields = [
+            "id",
+            "host",
+            "topic",
+            "name",
+            "description",
+            "participants",
+            "updated",
+            "created",
+        ]
+        read_only_fields = ["id", "host"]
+
+
+class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = "__all__"
+        fields = ["id", "username", "email", "name", "bio", "AdminAccount", "avatar"]
 
 
 class UserLoginSerializer(ModelSerializer):
