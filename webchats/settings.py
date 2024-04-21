@@ -206,3 +206,7 @@ CORS_ORIGIN_ALLOW_ALL = True
 ALLOWED_HOSTS = [".vercel.app", ".now.sh"]
 
 WSGI_APPLICATION = "webchats.wsgi.application"
+
+
+STATICFILES_DIRS = os.path.join(BASE_DIR, "static")
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles_build", "static")
