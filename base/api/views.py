@@ -12,15 +12,13 @@ from .serializers import (
     UserLoginSerializer,
     CreateRoomSerializer,
     UpdateRoomSerializer,
+    MessageSerializer,
+    RoomSerializerMsg,
 )
-from base.api import serializers
-from django.shortcuts import render, redirect
-from django.http import HttpResponse
-from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.db.models import Q
 from django.contrib.auth import authenticate, login, logout
 from ..models import Room, Topic, Message, User
-from base.forms import RoomForm, UserForm, MyUserCreationForm
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
@@ -31,6 +29,7 @@ from django.shortcuts import get_object_or_404
 import jwt
 import os
 from dotenv import load_dotenv
+from django.db.models import Count
 
 load_dotenv()
 
@@ -48,11 +47,89 @@ def getRooms(request):
     return Response(serializer.data)
 
 
+# @api_view(["GET"])
+# @authentication_classes([TokenAuthentication])
+# def getRoom(request, pk):
+#     room = Room.objects.get(id=pk)
+#     serializer = RoomSerializer(room, many=False)
+#     return Response(
+#         {"message": "Room info fetched successfully", "room": serializer.data}
+#     )
+
+
+from .serializers import UserSerializer
+
+
 @api_view(["GET"])
+@authentication_classes([TokenAuthentication])
 def getRoom(request, pk):
-    room = Room.objects.get(id=pk)
-    serializer = RoomSerializer(room, many=False)
-    return Response(serializer.data)
+    try:
+        room = Room.objects.get(id=pk)
+        messages = Message.objects.filter(room=room)
+        message_data = []
+        for message in messages:
+            # Use the UserSerializer to serialize user data
+            user_data = UserSerializer(message.user).data
+            message_data.append(
+                {
+                    "id": message.id,
+                    "body": message.body,
+                    "user": user_data,
+                    "created": message.created,
+                    # Include other message fields as needed
+                }
+            )
+
+        # Serialize host data
+        host_data = UserSerializer(room.host).data if room.host else None
+
+        # Serialize participants data
+        participants_data = UserSerializer(room.participants.all(), many=True).data
+
+        room_data = {
+            "id": room.id,
+            "host": host_data,
+            "topic": room.topic.name if room.topic else None,
+            "name": room.name,
+            "description": room.description,
+            "participants": participants_data,
+            "updated": room.updated,
+            "created": room.created,
+        }
+        return Response(
+            {
+                "message": "Room info and messages fetched successfully",
+                "room": room_data,
+                "messages": message_data,
+            }
+        )
+    except Room.DoesNotExist:
+        return Response(
+            {"message": "Room does not exist"}, status=status.HTTP_404_NOT_FOUND
+        )
+    except Message.DoesNotExist:
+        return Response(
+            {"message": "No messages found for this room"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except User.DoesNotExist:
+        return Response(
+            {"message": "User associated with a message not found"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["GET"])
+def roomCount(request):
+    # Get the count of rooms
+    count = Room.objects.count()
+
+    # Return the count in the response
+    return Response({"room_count": count})
 
     # @api_view(["POST"])
     # def login(request):
@@ -109,8 +186,13 @@ def login(request):
             user = authenticate(request._request, username=email, password=password)
             if user is not None:
                 refresh = RefreshToken.for_user(user)
+                user = UserSerializer(user)
                 return Response(
-                    {"refresh": str(refresh), "access": str(refresh.access_token)},
+                    {
+                        "refresh": str(refresh),
+                        "access": str(refresh.access_token),
+                        "user": user.data,
+                    },
                     status=status.HTTP_200_OK,
                 )
             else:
@@ -121,9 +203,23 @@ def login(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(["POST"])
 def logoutUser(request):
-    logout(request)
-    return redirect("home")
+    if request.method == "POST":
+        # Logout the user
+        logout(request)
+
+        # Clear the refresh token cookie
+        response = JsonResponse({"message": "User logged out successfully."})
+        response.delete_cookie("refresh_token")
+
+        return response
+    else:
+        # Return a method not allowed response if the request method is not POST
+        return Response(
+            {"error": "Method not allowed."}, status=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+    # return redirect("home")
 
 
 # @api_view(["POST"])
@@ -184,6 +280,7 @@ def register(request):
         if serializer.is_valid():
             user = serializer.save()
             user.set_password(request.data.get("password"))  # Set the password
+            user.avatar = "https://api.multiavatar.com/" + user.name  # Set the password
             user.save()
             # login(request, user)  # Removed this line
             refresh = RefreshToken.for_user(user)
@@ -203,7 +300,7 @@ def register(request):
 
 @api_view(["POST"])
 def refresh_token(request):
-    refresh_token = request.COOKIES.get("refresh_token")
+    refresh_token = request.COOKIES.get("refresh")
     if refresh_token:
         try:
             refresh = RefreshToken(refresh_token)
@@ -275,19 +372,27 @@ def sendMessage(request, pk):
         # Create the message
         message = Message.objects.create(user=user, room=room, body=body)
 
-        # Add the user to the room's participants
-        room.participants.add(user)
+        # Add the user to the room's participants if not already a participant
+        if user not in room.participants.all():
+            room.participants.add(user)
 
         # Get updated room messages and participants
         room_messages = room.message_set.all()
         participants = room.participants.all()
 
+        # Serialize the room messages with the updated MessageSerializer
+        message_serializer = MessageSerializer(instance=room_messages, many=True)
+
+        # Serialize the message object separately
+        serialized_message = MessageSerializer(instance=message).data
+
         return Response(
             {
-                "room": room,
-                "room_messages": room_messages,
-                "participants": participants,
-                "message": message,
+                "success": "Message has been sent",
+                "room": RoomSerializer(room).data,
+                "room_messages": message_serializer.data,
+                "participants": UserSerializer(participants, many=True).data,
+                "message": serialized_message,
             },
             status=status.HTTP_200_OK,
         )
@@ -340,6 +445,7 @@ def createRoom(request):
             status=status.HTTP_403_FORBIDDEN,
         )
 
+    print(request.data)
     host_id = request.data.get("host")
     if host_id is None:
         return Response(
@@ -402,39 +508,80 @@ def updateRoom(request, pk):
     payload = jwt.decode(
         token, verify=False, algorithms="HS256", key=os.getenv("screct")
     )
-    print(payload["user_id"])
+
     try:
         host = User.objects.get(id=payload["user_id"])
     except User.DoesNotExist:
         return Response(
-            {"message": "Host does not exist."},
+            {"error": "Host does not exist."},
             status=status.HTTP_404_NOT_FOUND,
         )
+    print(host)
+    print(room.host)
     # Check if the current user is the host of the room
     if host != room.host:
         return Response(
-            {"message": "You are not allowed to modify this room."},
+            {"error": "You are not allowed to modify this room."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    # Proceed with the update if the user is the host
-    serializer = UpdateRoomSerializer(room, data=request.data, partial=True)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # Update the room fields directly from the request data if they exist
+    name = request.data.get("name")
+    topic = request.data.get("topic")
+    description = request.data.get("description")
 
-    # If topic is provided in the request data, create the topic if it doesn't exist
-    topic_name = serializer.validated_data.get("topic")
-    if topic_name:
-        topic, created = Topic.objects.get_or_create(name=topic_name)
-        if created:
-            # Update the topic field in the serializer data with the newly created topic
-            serializer.validated_data["topic"] = topic
+    if name:
+        room.name = name
+    if topic:
+        topic_instance, _ = Topic.objects.get_or_create(name=topic)
+        room.topic = topic_instance
+    if description:
+        room.description = description
 
-    serializer.save()
-    return Response(
-        {"message": "Details updated successfully", "room": serializer.data},
-        status=status.HTTP_200_OK,
-    )
+    # Save the updated room
+    room.save()
+
+    # Get participants' data
+    participants_data = []
+    for participant in room.participants.all():
+        participant_data = {
+            "id": participant.id,
+            "username": participant.username,
+            "email": participant.email,
+            "name": participant.name,
+            "bio": participant.bio,
+            "AdminAccount": participant.AdminAccount,
+            "avatar": participant.avatar,
+        }
+        participants_data.append(participant_data)
+
+    # Construct the response
+    response_data = {
+        "message": "Details updated successfully",
+        "room": {
+            "id": room.id,
+            "host": {
+                "id": room.host.id,
+                "username": room.host.username,
+                "email": room.host.email,
+                "name": room.host.name,
+                "bio": room.host.bio,
+                "AdminAccount": room.host.AdminAccount,
+                "avatar": room.host.avatar,
+            },
+            "topic": {
+                "id": room.topic.id if room.topic else None,
+                "name": room.topic.name if room.topic else None,
+            },
+            "name": room.name,
+            "description": room.description,
+            "participants": participants_data,
+            "updated": room.updated,
+            "created": room.created,
+        },
+    }
+
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
 @api_view(["DELETE"])
@@ -454,7 +601,7 @@ def deleteRoom(request, pk):
         host = User.objects.get(id=payload["user_id"])
     except User.DoesNotExist:
         return Response(
-            {"message": "Host does not exist."},
+            {"error": "Host does not exist."},
             status=status.HTTP_404_NOT_FOUND,
         )
 
@@ -472,7 +619,6 @@ def deleteRoom(request, pk):
 
 @api_view(["DELETE"])
 @authentication_classes([TokenAuthentication])
-@permission_classes([IsAuthenticated])
 def deleteMessage(request, pk):
     message = Message.objects.get(id=pk)
 
@@ -485,19 +631,17 @@ def deleteMessage(request, pk):
         user = User.objects.get(id=payload["user_id"])
     except User.DoesNotExist:
         return Response(
-            {"message": "Host does not exist."},
+            {"error": "Host does not exist."},
             status=status.HTTP_404_NOT_FOUND,
         )
     # Check if the current user is the host of the room
     if user != message.user:
         return Response(
-            {"message": "You are not allowed to delete this message."},
+            {"error": "You are not allowed to delete this message."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    if request.method == "POST":
-        message.delete()
-        return redirect("home")
-    return render(request, "base/delete.html", {"obj": message})
+    message.delete()
+    return Response({"success": "message deleted successfully!"})
 
 
 @authentication_classes([TokenAuthentication])
@@ -516,7 +660,7 @@ def updateUser(request):
                 user = User.objects.get(id=payload["user_id"])
             except User.DoesNotExist:
                 return Response(
-                    {"message": "Host does not exist."},
+                    {"error": "Host does not exist."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
             # Check if the decoded user's email matches the email provided in the request data
@@ -552,10 +696,25 @@ def updateUser(request):
     # return render(request, "base/update-user.html", {"form": form})
 
 
+@api_view(["GET"])
 def topicsPage(request):
-    q = request.GET.get("q") if request.GET.get("q") != None else ""
-    topics = Topic.objects.filter(name__icontains=q)
-    return Response({"message": "topics fetched success", "topics": topics})
+    try:
+        q = request.GET.get("q") if request.GET.get("q") != None else ""
+        topics = Topic.objects.filter(name__icontains=q)
+        # Count the number of rooms for each topic
+        topic_counts = topics.annotate(num_rooms=Count("room"))
+
+        # Create a list of dictionaries containing topic names and their corresponding room counts
+        topic_list = [
+            {"topic": topic.name, "num_rooms": topic.num_rooms}
+            for topic in topic_counts
+        ]
+
+        return Response(
+            {"message": "Topics fetched successfully", "topics": topic_list}
+        )
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     # return render(request, "base/topics.html", {"topics": topics})
 
 

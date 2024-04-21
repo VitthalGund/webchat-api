@@ -88,18 +88,18 @@ WSGI_APPLICATION = "learnSync.wsgi.application"
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
 DATABASES = {
-    # "default": {
-    #     "ENGINE": "django.db.backends.sqlite3",
-    #     "NAME": BASE_DIR / "db.sqlite3",
-    # }
     "default": {
-        "ENGINE": os.getenv("ENGINE"),
-        "NAME": os.getenv("NAME"),
-        "USER": os.getenv("USER"),
-        "PASSWORD": os.getenv("PASSWORD"),
-        "HOST": os.getenv("HOST"),
-        "PORT": os.getenv("PORT"),
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
+    # "default": {
+    #     "ENGINE": os.getenv("ENGINE"),
+    #     "NAME": os.getenv("NAME"),
+    #     "USER": os.getenv("USER"),
+    #     "PASSWORD": os.getenv("PASSWORD"),
+    #     "HOST": os.getenv("HOST"),
+    #     "PORT": os.getenv("PORT"),
+    # }
 }
 
 
@@ -192,3 +192,13 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
 }
+
+# CORS SETTING
+CORS_ALLOW_METHODS = (
+    "DELETE",
+    "GET",
+    "POST",
+    "PUT",
+)
+
+CORS_ORIGIN_ALLOW_ALL = True
