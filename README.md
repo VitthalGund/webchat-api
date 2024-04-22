@@ -101,9 +101,11 @@ You can now explore and interact with the WebChat API. Use the provided API rout
   - **Request Format**:
     ```json
     {
+      "name":"name",
       "username": "username",
       "email": "user@example.com",
-      "password": "password123"
+      "password1": "password123"
+      "password2": "password123"
     }
     ```
   - **Headers**:
