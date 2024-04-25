@@ -223,5 +223,6 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
 
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
-
-PORT = 80 
+SERVER_HOST = '0.0.0.0'
+SERVER_PORT = os.environ.get('PORT', 8000)
+CMD_ARGS = ['gunicorn', 'webchats.wsgi:application', f'--bind={SERVER_HOST}:{SERVER_PORT}']
