@@ -32,7 +32,7 @@ SECRET_KEY = "django-insecure-3#av2c6nptlbbb6^muqkchu&fe3wv&n$t2+g$v!ir-f5%doocb
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -205,7 +205,7 @@ CORS_ALLOW_METHODS = (
 
 CORS_ORIGIN_ALLOW_ALL = True
 
-ALLOWED_HOSTS = [".vercel.app", ".now.sh"]
+ALLOWED_HOSTS = [".vercel.app", ".now.sh","*"]
 
 WSGI_APPLICATION = "webchats.wsgi.application"
 
