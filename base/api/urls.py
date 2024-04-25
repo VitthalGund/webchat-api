@@ -5,7 +5,7 @@ from rest_framework import routers
 router = routers.DefaultRouter()
 
 urlpatterns = [
-    # path("", views.getRoutes),
+    path("", views.getRoutes),
     path("rooms/", views.getRooms),
     path("count/", views.roomCount),
     path("room/<int:pk>", views.getRoom),
