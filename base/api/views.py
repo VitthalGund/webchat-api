@@ -15,6 +15,7 @@ from .serializers import (
     MessageSerializer,
     RoomSerializerMsg,
 )
+from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 from django.db.models import Q
 from django.contrib.auth import authenticate, login, logout
@@ -131,51 +132,7 @@ def roomCount(request):
     # Return the count in the response
     return Response({"room_count": count})
 
-    # @api_view(["POST"])
-    # def login(request):
-    # if request.COOKIES["refresh"]:
-    #     return Response(
-    #         {"messsage": "You are already login!"}, status=status.HTTP_202_ACCEPTED
-    #     )
-
-    if request.method == "POST":
-        email = request.data.get("email").lower()
-        password = request.data.get("password")
-
-        try:
-            user = User.objects.get(email=email, password=password)
-        except:
-            return Response(
-                {"error": "invalidate credentials!"},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        user = authenticate(request, email=email, password=password)
-
-        if user is not None:
-            login(request, user)
-            refresh = RefreshToken.for_user(user)
-            serializer = UserSerializer(user)
-            response = Response()
-            response.set_cookie("refresh", str(refresh))
-            return Response(
-                {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                    "user": serializer.data,
-                },
-                status=status.HTTP_200_OK,
-            )
-        else:
-            return Response(
-                {"error": "invalidate credentials!"},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-    # context = {"page": page}
-    # return render(request, "base/login_register.html", context)
-
-
+   
 @api_view(["POST"])
 def login(request):
     if request.method == "POST":
@@ -219,46 +176,7 @@ def logoutUser(request):
         return Response(
             {"error": "Method not allowed."}, status=status.HTTP_405_METHOD_NOT_ALLOWED
         )
-    # return redirect("home")
 
-
-# @api_view(["POST"])
-# def register(request):
-#     if request.method == "POST":
-#         serializer = UserSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             login(
-#                 request, serializer.data
-#             )  # Change serializers.data to serializer.data
-#             refresh = RefreshToken.for_user(
-#                 serializer.data
-#             )  # Change serializers.data to serializer.data
-#             serializer = UserSerializer(serializers.data)
-#             response = Response()
-#             response.set_cookie("refresh", str(refresh))
-#             return Response(
-#                 {
-#                     "refresh": str(refresh),
-#                     "access": str(refresh.access_token),
-#                     "user": serializer.data,
-#                 },
-#                 status=status.HTTP_201_CREATED,
-#             )
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-#         # form = MyUserCreationForm(request.POST)
-#         # print(request.POST)
-#         # if form.is_valid():
-#         #     user = form.save(commit=False)
-#         #     user.username = user.username.lower()
-#         #     user.save()
-#         #
-#         # else:
-#         #     # print(form.error_messages)
-#         #     # messages.error(request, "An error occurred during registration")
-#         #     return JsonResponse({"error": "invalidate credentials!"})
-
-#     # return render(request, "base/login_register.html", {"form": form})
 
 
 class CustomAuthToken(ObtainAuthToken):
@@ -341,7 +259,6 @@ def home(request):
     )
 
 
-from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
@@ -396,24 +313,6 @@ def sendMessage(request, pk):
             },
             status=status.HTTP_200_OK,
         )
-
-
-# @api_view(["GET"])
-# def userProfile(request, pk):
-#     user = User.objects.get(id=pk)
-#     rooms = user.room_set.all()
-#     room_messages = user.message_set.all()
-#     topics = Topic.objects.all()
-#     return Response(
-#         {
-#             "user": user,
-#             "rooms": rooms,
-#             "room_messages": room_messages,
-#             "topics": topics,
-#         },
-#         status=status.HTTP_200_OK,
-#     )
-
 
 @api_view(["GET"])
 def userProfile(request, pk):
@@ -683,17 +582,6 @@ def updateUser(request):
     return Response(
         {"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED
     )
-
-    # user = request.user
-    # form = UserForm(instance=user)
-
-    # if request.method == "POST":
-    #     form = UserForm(request.POST, request.FILES, instance=user)
-    #     if form.is_valid():
-    #         form.save()
-    #         return redirect("user-profile", pk=user.id)
-
-    # return render(request, "base/update-user.html", {"form": form})
 
 
 @api_view(["GET"])
