@@ -609,3 +609,16 @@ def topicsPage(request):
 def activityPage(request):
     room_messages = Message.objects.all()
     return Response({"message": "messages fetched success", "messages": room_messages})
+
+
+@api_view(["GET"])
+@authentication_classes([TokenAuthentication])
+def getRoomMessages(request, room_id):
+    # Retrieve all messages in the specified room
+    messages = Message.objects.filter(room=room_id)
+    
+    # Serialize the messages
+    serializer = MessageSerializer(messages, many=True)
+    
+    # Return the serialized messages as JSON response
+    return JsonResponse(serializer.data, safe=False)
